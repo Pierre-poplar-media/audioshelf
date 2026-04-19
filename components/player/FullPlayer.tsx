@@ -1,7 +1,7 @@
 'use client'
 
 import { Play, Pause, SkipBack, SkipForward, ChevronDown, RotateCcw, RotateCw, BookOpen } from 'lucide-react'
-import { usePlayerStore } from '@/store/player'
+import { usePlayerStore, synthesiseChapters } from '@/store/player'
 import { useAudioContext } from '@/components/providers/AudioProvider'
 import { formatDuration, percentComplete } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
@@ -30,6 +30,7 @@ export function FullPlayer() {
 
   if (!book || !isFullPlayerOpen) return null
 
+  const effectiveChapters = chapters.length > 0 ? chapters : synthesiseChapters(book)
   const pct = percentComplete(position, duration)
   const timeLeft = duration - position
 
@@ -37,6 +38,16 @@ export function FullPlayer() {
     const idx = SPEEDS.indexOf(speed)
     const next = SPEEDS[(idx + 1) % SPEEDS.length]
     setSpeed(next)
+  }
+
+  function prevChapter() {
+    const prev = [...effectiveChapters].reverse().find(c => c.start_time < position - 3)
+    seek(prev ? prev.start_time : (effectiveChapters[0]?.start_time ?? 0))
+  }
+
+  function nextChapter() {
+    const next = effectiveChapters.find(c => c.start_time > position + 1)
+    if (next) seek(next.start_time)
   }
 
   return (
@@ -62,8 +73,10 @@ export function FullPlayer() {
 
       {showChapters ? (
         <div className="flex-1 overflow-y-auto px-4">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-3">Chapters</h3>
-          {chapters.map((chapter) => (
+          <h3 className="text-sm font-semibold text-zinc-300 mb-3">
+            {effectiveChapters.length > 0 ? 'Chapters' : 'No chapters'}
+          </h3>
+          {effectiveChapters.map((chapter) => (
             <button
               key={chapter.id}
               onClick={() => { seek(chapter.start_time); setShowChapters(false) }}
@@ -127,14 +140,26 @@ export function FullPlayer() {
             </div>
           </div>
 
-          {/* Controls */}
-          <div className="flex items-center justify-between px-6 py-6">
+          {/* Speed */}
+          <div className="flex justify-center">
             <button
               onClick={cycleSpeed}
-              className="text-sm font-bold text-zinc-400 hover:text-white w-12 text-center"
+              className="text-sm font-bold text-zinc-400 hover:text-white px-3 py-1 rounded-full hover:bg-zinc-800 transition-colors"
               aria-label="Playback speed"
             >
               {speed}x
+            </button>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center justify-between px-6 py-4">
+            <button
+              onClick={prevChapter}
+              disabled={effectiveChapters.length === 0}
+              className="p-3 text-zinc-300 hover:text-white disabled:opacity-30"
+              aria-label="Previous chapter"
+            >
+              <SkipBack size={26} />
             </button>
 
             <button
@@ -142,7 +167,7 @@ export function FullPlayer() {
               className="p-3 text-zinc-300 hover:text-white"
               aria-label="Skip back 30 seconds"
             >
-              <RotateCcw size={28} />
+              <RotateCcw size={26} />
               <span className="text-[9px] block -mt-1">30</span>
             </button>
 
@@ -163,11 +188,18 @@ export function FullPlayer() {
               className="p-3 text-zinc-300 hover:text-white"
               aria-label="Skip forward 30 seconds"
             >
-              <RotateCw size={28} />
+              <RotateCw size={26} />
               <span className="text-[9px] block -mt-1">30</span>
             </button>
 
-            <div className="w-12" />
+            <button
+              onClick={nextChapter}
+              disabled={effectiveChapters.length === 0}
+              className="p-3 text-zinc-300 hover:text-white disabled:opacity-30"
+              aria-label="Next chapter"
+            >
+              <SkipForward size={26} />
+            </button>
           </div>
 
           <div className="pb-8" />

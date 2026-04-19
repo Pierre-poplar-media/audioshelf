@@ -1,6 +1,23 @@
 import { create } from 'zustand'
 import { BookWithProgress, Chapter } from '@/types'
 
+// Turns book_parts into chapter-like objects for multi-file books with no embedded chapters
+export function synthesiseChapters(book: BookWithProgress | null): Chapter[] {
+  const parts = book?.book_parts ?? []
+  if (parts.length <= 1) return []
+  return [...parts]
+    .sort((a, b) => a.part_index - b.part_index)
+    .map((p, i) => ({
+      id: p.id,
+      book_id: p.book_id,
+      // Derive a readable title from the filename
+      title: p.audio_key.split('/').pop()?.replace(/\.[^.]+$/, '') ?? `Part ${i + 1}`,
+      start_time: p.start_offset,
+      end_time: p.start_offset + p.duration,
+      chapter_index: p.part_index,
+    }))
+}
+
 interface PlayerStore {
   book: BookWithProgress | null
   isPlaying: boolean
@@ -58,9 +75,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   setFullPlayerOpen: (v) => set({ isFullPlayerOpen: v }),
 
   updateCurrentChapter: (position) => {
-    const { chapters } = get()
-    if (!chapters.length) return
-    const chapter = chapters.findLast((c) => c.start_time <= position) ?? chapters[0]
+    const { chapters, book } = get()
+    const effective = chapters.length > 0 ? chapters : synthesiseChapters(book)
+    if (!effective.length) { set({ currentChapter: null }); return }
+    const chapter = effective.findLast((c) => c.start_time <= position) ?? effective[0]
     set({ currentChapter: chapter })
   },
 }))

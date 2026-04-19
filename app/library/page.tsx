@@ -19,7 +19,7 @@ export default function LibraryPage() {
   const loadBooks = useCallback(async () => {
     const { data } = await supabase
       .from('books')
-      .select('*, progress(*), chapters(*)')
+      .select('*, progress(*), chapters(*), book_parts(*)')
       .order('created_at', { ascending: false })
 
     if (data) {
@@ -27,6 +27,7 @@ export default function LibraryPage() {
         ...b,
         progress: Array.isArray(b.progress) ? b.progress[0] ?? null : b.progress,
         chapters: Array.isArray(b.chapters) ? b.chapters : [],
+        book_parts: Array.isArray(b.book_parts) ? b.book_parts : [],
       })))
     }
     setLoading(false)

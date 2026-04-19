@@ -126,9 +126,11 @@ export async function POST(request: NextRequest) {
   if (bookError || !book) return NextResponse.json({ error: bookError?.message }, { status: 500 })
 
   // Insert book_parts for multi-file books
+  let partOffsets: number[] = []
   if (parts.length > 1) {
     let offset = 0
     const partRows = parsedParts.map((p, i) => {
+      partOffsets[i] = offset
       const row = {
         book_id: book.id,
         audio_key: parts[i].key,
@@ -157,6 +159,23 @@ export async function POST(request: NextRequest) {
         chapter_index: i,
       }))
     )
+  } else if (parts.length > 1) {
+    // No embedded chapter markers — create one chapter per file part so the
+    // player's chapter list shows each part and the user can tap to jump between them.
+    const chapterRows = parsedParts.map((p, i) => {
+      const startTime = partOffsets[i]
+      const endTime = startTime + p.duration
+      // Clean filename: strip extension and replace underscores/hyphens with spaces
+      const cleanTitle = parts[i].filename.replace(/\.[^.]+$/, '').trim()
+      return {
+        book_id: book.id,
+        title: cleanTitle || `Part ${i + 1}`,
+        start_time: startTime,
+        end_time: endTime,
+        chapter_index: i,
+      }
+    })
+    await supabase.from('chapters').insert(chapterRows)
   }
 
   return NextResponse.json({ book }, { status: 201 })
