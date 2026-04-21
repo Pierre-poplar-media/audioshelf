@@ -101,7 +101,7 @@ export function useAudio() {
     } else {
       // Single-file book
       currentPartRef.current = null
-      if (audio.src !== book.audio_url) {
+      if (book.audio_url && audio.src !== book.audio_url) {
         audio.src = book.audio_url
         audio.currentTime = startPos
       }
@@ -204,7 +204,8 @@ export function useAudio() {
           audio.pause()
           setIsPlaying(false)
           saveProgress(getGlobalPos(), audio.playbackRate)
-          setTimeout(() => { audio.volume = startVolume }, 500)
+          // Restore volume from current store state (not stale closure value)
+          setTimeout(() => { audio.volume = Math.min(1, usePlayerStore.getState().volume) }, 500)
           setSleepTimer(null)
         }
       }, stepMs)

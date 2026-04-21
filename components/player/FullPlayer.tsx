@@ -186,7 +186,7 @@ export function FullPlayer() {
               {/* Play / Pause */}
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="w-18 h-18 w-[72px] h-[72px] rounded-full bg-white hover:bg-zinc-100 flex items-center justify-center transition-colors shadow-xl"
+                className="w-[72px] h-[72px] rounded-full bg-white hover:bg-zinc-100 flex items-center justify-center transition-colors shadow-xl"
                 aria-label={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
