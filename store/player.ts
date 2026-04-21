@@ -1,6 +1,16 @@
 import { create } from 'zustand'
 import { BookWithProgress, Chapter } from '@/types'
 
+// UUID / timestamp-UUID pattern — not a human-readable filename
+const UUID_LIKE = /^[\da-f]{8,}-[\da-f-]{8,}/i
+
+function readablePartTitle(audioKey: string, fallback: string): string {
+  const filename = audioKey.split('/').pop()?.replace(/\.[^.]+$/, '') ?? ''
+  if (!filename || UUID_LIKE.test(filename)) return fallback
+  // Replace underscores/hyphens with spaces and trim
+  return filename.replace(/[_-]+/g, ' ').trim()
+}
+
 // Turns book_parts into chapter-like objects for multi-file books with no embedded chapters
 export function synthesiseChapters(book: BookWithProgress | null): Chapter[] {
   const parts = book?.book_parts ?? []
@@ -10,8 +20,7 @@ export function synthesiseChapters(book: BookWithProgress | null): Chapter[] {
     .map((p, i) => ({
       id: p.id,
       book_id: p.book_id,
-      // Derive a readable title from the filename
-      title: p.audio_key.split('/').pop()?.replace(/\.[^.]+$/, '') ?? `Part ${i + 1}`,
+      title: readablePartTitle(p.audio_key, `Part ${i + 1}`),
       start_time: p.start_offset,
       end_time: p.start_offset + p.duration,
       chapter_index: p.part_index,

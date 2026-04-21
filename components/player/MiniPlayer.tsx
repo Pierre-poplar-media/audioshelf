@@ -13,13 +13,14 @@ export function MiniPlayer() {
     position,
     duration,
     currentChapter,
+    isFullPlayerOpen,
     setIsPlaying,
     setFullPlayerOpen,
   } = usePlayerStore()
 
   const { skip } = useAudioContext()
 
-  if (!book) return null
+  if (!book || isFullPlayerOpen) return null
 
   const pct = percentComplete(position, duration)
 
