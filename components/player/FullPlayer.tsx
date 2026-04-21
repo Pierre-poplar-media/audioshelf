@@ -51,8 +51,8 @@ export function FullPlayer() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden">
-      {/* Blurred background */}
-      <div className="absolute inset-0">
+      {/* Blurred background — pointer-events-none so it never blocks taps */}
+      <div className="absolute inset-0 pointer-events-none">
         {book.cover_url ? (
           <Image
             src={book.cover_url}
