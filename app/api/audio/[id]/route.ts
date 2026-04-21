@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { Readable } from 'node:stream'
 import { createClient } from '@/lib/supabase/server'
 import { r2, BUCKET } from '@/lib/r2'
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
@@ -60,9 +59,20 @@ export async function GET(
 
     const status = rangeHeader ? 206 : 200
 
-    // AWS SDK returns a Node.js Readable in server environments.
-    // Convert to a Web ReadableStream for the Response constructor.
-    const webStream = Readable.toWeb(r2Res.Body as Readable) as ReadableStream
+    // AWS SDK returns a Node.js EventEmitter-style stream in server environments.
+    // Wrap it in a Web ReadableStream so the Response constructor accepts it.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nodeStream = r2Res.Body as any
+    const webStream = new ReadableStream({
+      start(controller) {
+        nodeStream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)))
+        nodeStream.on('end', () => controller.close())
+        nodeStream.on('error', (err: Error) => controller.error(err))
+      },
+      cancel() {
+        nodeStream.destroy?.()
+      },
+    })
 
     return new Response(webStream, { status, headers })
   } catch (err: unknown) {
