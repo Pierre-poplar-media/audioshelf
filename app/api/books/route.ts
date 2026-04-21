@@ -40,7 +40,8 @@ async function parsePartMeta(key: string): Promise<{
   try {
     const res = await fetch(audioUrl, { headers: { Range: 'bytes=0-10485760' } })
     const buffer = Buffer.from(await res.arrayBuffer())
-    metadata = await mm.parseBuffer(buffer, { mimeType: 'audio/mp4', size: buffer.length })
+    // Let music-metadata detect the format from the file contents, not a hardcoded MIME type
+    metadata = await mm.parseBuffer(buffer, { size: buffer.length })
   } catch {}
 
   return { metadata, duration: metadata?.format?.duration ?? 0, fileSize, audioUrl }

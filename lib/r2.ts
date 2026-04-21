@@ -10,7 +10,7 @@ const r2 = new S3Client({
   },
 })
 
-const BUCKET = process.env.R2_BUCKET_NAME!
+const BUCKET = (process.env.R2_BUCKET_NAME ?? '').trim()
 
 export async function getUploadUrl(key: string, contentType: string, expiresIn = 3600) {
   const command = new PutObjectCommand({
