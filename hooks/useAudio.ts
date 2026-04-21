@@ -92,8 +92,11 @@ export function useAudio() {
     const parts = book.book_parts ?? []
     const startPos = book.progress?.position ?? 0
 
-    // Set total duration from book data (reliable for multi-part)
-    if (book.duration > 0) setDuration(book.duration)
+    // Set total duration — prefer book.duration, fall back to sum of parts
+    const totalDuration = book.duration > 0
+      ? book.duration
+      : parts.reduce((sum, p) => sum + (p.duration ?? 0), 0)
+    if (totalDuration > 0) setDuration(totalDuration)
 
     if (parts.length > 1) {
       const { part, localPos } = resolvePartAt(startPos, parts)

@@ -37,17 +37,27 @@ export function BookCard({ book: initialBook, onDeleted }: Props) {
       .eq('book_id', book.id)
       .order('chapter_index')
 
-    // Refresh signed URL if needed
-    let audioUrl = book.audio_url
+    // Refresh signed URLs (multi-part books need all parts refreshed)
+    let updatedBook = book
     try {
       const res = await fetch(`/api/books/${book.id}/stream`)
       if (res.ok) {
         const data = await res.json()
-        audioUrl = data.url
+        // Merge refreshed part URLs back into book_parts so audio loads correctly
+        const refreshedParts: Array<{ part_index: number; url: string; duration: number; start_offset: number }> = data.parts ?? []
+        const updatedBookParts = book.book_parts?.map(part => {
+          const refreshed = refreshedParts.find(p => p.part_index === part.part_index)
+          return refreshed ? { ...part, audio_url: refreshed.url, duration: refreshed.duration } : part
+        })
+        updatedBook = {
+          ...book,
+          audio_url: data.url,
+          book_parts: updatedBookParts ?? book.book_parts,
+        }
       }
     } catch {}
 
-    setBook({ ...book, audio_url: audioUrl }, chapters ?? [])
+    setBook(updatedBook, chapters ?? [])
     setIsPlaying(true)
   }, [book, isActive, isPlaying, setBook, setIsPlaying, supabase])
 
