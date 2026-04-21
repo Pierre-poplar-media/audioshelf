@@ -27,14 +27,17 @@ export async function GET(request: NextRequest) {
   const has0A = url.includes('%0A')
   const credMatch = url.match(/X-Amz-Credential=([^&]+)/)
 
-  // HEAD the URL from the server to check R2 responds correctly
+  // GET the URL (small range) from the server to check R2 responds correctly
   let r2Status: number | null = null
   let r2Headers: Record<string, string> = {}
+  let r2Body: string | null = null
   let r2Error: string | null = null
   try {
-    const res = await fetch(url, { method: 'HEAD' })
+    const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-255' } })
     r2Status = res.status
     res.headers.forEach((v, k) => { r2Headers[k] = v })
+    // Read first 500 chars of body (will be XML error or audio data)
+    r2Body = (await res.text()).substring(0, 500)
   } catch (e) {
     r2Error = String(e)
   }
@@ -46,6 +49,7 @@ export async function GET(request: NextRequest) {
     credential: credMatch?.[1],
     r2Status,
     r2Headers,
+    r2Body,
     r2Error,
   })
 }

@@ -16,6 +16,10 @@ const r2 = new S3Client({
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY,
   },
+  // Prevent SDK from adding x-amz-checksum-mode=ENABLED to presigned URLs.
+  // R2 doesn't recognise this parameter and returns SignatureDoesNotMatch (403).
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 })
 
 export async function getUploadUrl(key: string, contentType: string, expiresIn = 3600) {
