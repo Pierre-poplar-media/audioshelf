@@ -76,7 +76,10 @@ export function useAudio() {
       audio.src = part.audio_url
     }
     audio.currentTime = localPos
-    if (autoPlay) audio.play().catch(() => setIsPlaying(false))
+    if (autoPlay) audio.play().catch((err) => {
+      if (err.name === 'AbortError') return // harmless race between play/pause, self-resolves
+      setIsPlaying(false)
+    })
   }, [setIsPlaying])
 
   // Initialize or update audio source when book changes
@@ -157,6 +160,7 @@ export function useAudio() {
     if (isPlaying) {
       audio.volume = Math.min(1, volume)
       audio.play().catch((err) => {
+        if (err.name === 'AbortError') return // harmless race, self-resolves
         console.warn('AudioShelf: play failed —', err.name, err.message)
         setIsPlaying(false)
       })
