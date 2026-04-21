@@ -1,9 +1,9 @@
 'use client'
 
-import { Play, Pause, SkipBack, SkipForward, ChevronDown, RotateCcw, RotateCw, BookOpen } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, ChevronDown, RotateCcw, RotateCw, BookOpen, ListMusic } from 'lucide-react'
 import { usePlayerStore, synthesiseChapters } from '@/store/player'
 import { useAudioContext } from '@/components/providers/AudioProvider'
-import { formatDuration, percentComplete } from '@/lib/utils'
+import { formatDuration } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import Image from 'next/image'
 import { useState } from 'react'
@@ -31,7 +31,6 @@ export function FullPlayer() {
   if (!book || !isFullPlayerOpen) return null
 
   const effectiveChapters = chapters.length > 0 ? chapters : synthesiseChapters(book)
-  const pct = percentComplete(position, duration)
   const timeLeft = duration - position
 
   function cycleSpeed() {
@@ -51,160 +50,195 @@ export function FullPlayer() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-12 pb-4">
-        <button
-          onClick={() => setFullPlayerOpen(false)}
-          className="p-2 text-zinc-400 hover:text-white"
-          aria-label="Close player"
-        >
-          <ChevronDown size={24} />
-        </button>
-        <p className="text-xs uppercase tracking-widest text-zinc-500">Now Playing</p>
-        <button
-          onClick={() => setShowChapters(!showChapters)}
-          className="p-2 text-zinc-400 hover:text-white"
-          aria-label="Chapters"
-        >
-          <BookOpen size={20} />
-        </button>
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden">
+      {/* Blurred background */}
+      <div className="absolute inset-0">
+        {book.cover_url ? (
+          <Image
+            src={book.cover_url}
+            alt=""
+            fill
+            className="object-cover scale-125 blur-3xl opacity-50"
+            aria-hidden
+          />
+        ) : (
+          <div className="absolute inset-0 bg-zinc-900" />
+        )}
+        {/* Dark overlay so text is readable */}
+        <div className="absolute inset-0 bg-zinc-950/70" />
       </div>
 
-      {showChapters ? (
-        <div className="flex-1 overflow-y-auto px-4">
-          <h3 className="text-sm font-semibold text-zinc-300 mb-3">
-            {effectiveChapters.length > 0 ? 'Chapters' : 'No chapters'}
-          </h3>
-          {effectiveChapters.map((chapter) => (
-            <button
-              key={chapter.id}
-              onClick={() => { seek(chapter.start_time); setShowChapters(false) }}
-              className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition-colors ${
-                currentChapter?.id === chapter.id
-                  ? 'bg-amber-500/20 text-amber-400'
-                  : 'text-zinc-300 hover:bg-zinc-800'
-              }`}
-            >
-              <p className="text-sm font-medium">{chapter.title}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">{formatDuration(chapter.start_time)}</p>
-            </button>
-          ))}
+      {/* All content sits above the blurred bg */}
+      <div className="relative z-10 flex flex-col h-full">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-12 pb-2">
+          <button
+            onClick={() => setFullPlayerOpen(false)}
+            className="p-2 text-zinc-300 hover:text-white transition-colors"
+            aria-label="Close player"
+          >
+            <ChevronDown size={24} />
+          </button>
+          <p className="text-xs uppercase tracking-widest text-zinc-400 font-semibold">Now Playing</p>
+          <button
+            onClick={() => setShowChapters(!showChapters)}
+            className={`p-2 transition-colors ${showChapters ? 'text-amber-400' : 'text-zinc-300 hover:text-white'}`}
+            aria-label="Chapters"
+          >
+            <ListMusic size={20} />
+          </button>
         </div>
-      ) : (
-        <>
-          {/* Cover art */}
-          <div className="flex-1 flex items-center justify-center px-8">
-            <div className="w-full max-w-xs aspect-square rounded-2xl overflow-hidden shadow-2xl bg-zinc-800">
-              {book.cover_url ? (
-                <Image
-                  src={book.cover_url}
-                  alt={book.title}
-                  width={400}
-                  height={400}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-8xl">📚</span>
-                </div>
+
+        {showChapters ? (
+          /* Chapter list */
+          <div className="flex-1 overflow-y-auto px-4 py-2">
+            <h3 className="text-sm font-semibold text-zinc-300 mb-3 px-1">
+              {effectiveChapters.length > 0 ? 'Chapters' : 'No chapters found'}
+            </h3>
+            {effectiveChapters.map((chapter) => (
+              <button
+                key={chapter.id}
+                onClick={() => { seek(chapter.start_time); setShowChapters(false) }}
+                className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors ${
+                  currentChapter?.id === chapter.id
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'text-zinc-300 hover:bg-white/10'
+                }`}
+              >
+                <p className="text-sm font-medium leading-tight">{chapter.title}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{formatDuration(chapter.start_time)}</p>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* Cover art */}
+            <div className="flex-1 flex items-center justify-center px-10 py-4">
+              <div className="w-full max-w-[280px] aspect-square rounded-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.7)] bg-zinc-800">
+                {book.cover_url ? (
+                  <Image
+                    src={book.cover_url}
+                    alt={book.title}
+                    width={400}
+                    height={400}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-8xl">📚</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Book + chapter info */}
+            <div className="px-6 pb-4 text-center">
+              {currentChapter && (
+                <p className="text-xs text-amber-400 font-medium mb-1 truncate uppercase tracking-wide">
+                  {currentChapter.title}
+                </p>
+              )}
+              <h2 className="text-xl font-bold text-white truncate leading-tight">{book.title}</h2>
+              {book.author && (
+                <p className="text-sm text-zinc-400 mt-0.5 truncate">{book.author}</p>
               )}
             </div>
-          </div>
 
-          {/* Metadata */}
-          <div className="px-6 pt-4">
-            <h2 className="text-xl font-bold text-white truncate">{book.title}</h2>
-            {book.author && <p className="text-zinc-400 text-sm mt-0.5 truncate">{book.author}</p>}
-            {currentChapter && (
-              <p className="text-xs text-amber-500 mt-1 truncate">{currentChapter.title}</p>
-            )}
-          </div>
-
-          {/* Scrubber */}
-          <div className="px-6 pt-4">
-            <Slider
-              value={[position]}
-              max={duration || 100}
-              step={1}
-              onValueChange={(val) => seek(Array.isArray(val) ? val[0] : val)}
-              className="w-full"
-              aria-label="Seek position"
-            />
-            <div className="flex justify-between text-xs text-zinc-500 mt-1">
-              <span>{formatDuration(position)}</span>
-              <span>-{formatDuration(timeLeft)}</span>
+            {/* Scrubber */}
+            <div className="px-6 pb-2">
+              <Slider
+                value={[position]}
+                max={duration || 100}
+                step={1}
+                onValueChange={(val) => seek(Array.isArray(val) ? val[0] : val)}
+                className="w-full"
+                aria-label="Seek position"
+              />
+              <div className="flex justify-between text-xs text-zinc-400 mt-2">
+                <span>{formatDuration(position)}</span>
+                <span className="text-zinc-500">-{formatDuration(timeLeft)}</span>
+              </div>
             </div>
-            <div className="text-center text-xs text-zinc-600 mt-0.5">
-              {percentComplete(position, duration)}% complete
+
+            {/* Main controls */}
+            <div className="flex items-center justify-between px-8 py-2">
+              {/* Prev chapter */}
+              <button
+                onClick={prevChapter}
+                disabled={effectiveChapters.length === 0}
+                className="p-2 text-zinc-300 hover:text-white disabled:opacity-30 transition-colors"
+                aria-label="Previous chapter"
+              >
+                <SkipBack size={28} />
+              </button>
+
+              {/* Skip back 15s */}
+              <button
+                onClick={() => skip(-15)}
+                className="p-2 text-zinc-200 hover:text-white transition-colors flex flex-col items-center"
+                aria-label="Skip back 15 seconds"
+              >
+                <RotateCcw size={28} />
+                <span className="text-[10px] font-semibold mt-0.5 leading-none">15</span>
+              </button>
+
+              {/* Play / Pause */}
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="w-18 h-18 w-[72px] h-[72px] rounded-full bg-white hover:bg-zinc-100 flex items-center justify-center transition-colors shadow-xl"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? (
+                  <Pause size={30} className="text-zinc-900" />
+                ) : (
+                  <Play size={30} className="text-zinc-900 ml-1" />
+                )}
+              </button>
+
+              {/* Skip forward 30s */}
+              <button
+                onClick={() => skip(30)}
+                className="p-2 text-zinc-200 hover:text-white transition-colors flex flex-col items-center"
+                aria-label="Skip forward 30 seconds"
+              >
+                <RotateCw size={28} />
+                <span className="text-[10px] font-semibold mt-0.5 leading-none">30</span>
+              </button>
+
+              {/* Next chapter */}
+              <button
+                onClick={nextChapter}
+                disabled={effectiveChapters.length === 0}
+                className="p-2 text-zinc-300 hover:text-white disabled:opacity-30 transition-colors"
+                aria-label="Next chapter"
+              >
+                <SkipForward size={28} />
+              </button>
             </div>
-          </div>
 
-          {/* Speed */}
-          <div className="flex justify-center">
-            <button
-              onClick={cycleSpeed}
-              className="text-sm font-bold text-zinc-400 hover:text-white px-3 py-1 rounded-full hover:bg-zinc-800 transition-colors"
-              aria-label="Playback speed"
-            >
-              {speed}x
-            </button>
-          </div>
+            {/* Bottom row: speed + chapters toggle */}
+            <div className="flex items-center justify-between px-8 pb-10 pt-2">
+              <button
+                onClick={cycleSpeed}
+                className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                aria-label="Playback speed"
+              >
+                <span className="text-sm font-bold text-white">{speed}×</span>
+              </button>
 
-          {/* Controls */}
-          <div className="flex items-center justify-between px-6 py-4">
-            <button
-              onClick={prevChapter}
-              disabled={effectiveChapters.length === 0}
-              className="p-3 text-zinc-300 hover:text-white disabled:opacity-30"
-              aria-label="Previous chapter"
-            >
-              <SkipBack size={26} />
-            </button>
-
-            <button
-              onClick={() => skip(-30)}
-              className="p-3 text-zinc-300 hover:text-white"
-              aria-label="Skip back 30 seconds"
-            >
-              <RotateCcw size={26} />
-              <span className="text-[9px] block -mt-1">30</span>
-            </button>
-
-            <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="w-16 h-16 rounded-full bg-amber-500 hover:bg-amber-400 flex items-center justify-center transition-colors shadow-lg"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? (
-                <Pause size={28} className="text-zinc-900" />
-              ) : (
-                <Play size={28} className="text-zinc-900 ml-1" />
-              )}
-            </button>
-
-            <button
-              onClick={() => skip(30)}
-              className="p-3 text-zinc-300 hover:text-white"
-              aria-label="Skip forward 30 seconds"
-            >
-              <RotateCw size={26} />
-              <span className="text-[9px] block -mt-1">30</span>
-            </button>
-
-            <button
-              onClick={nextChapter}
-              disabled={effectiveChapters.length === 0}
-              className="p-3 text-zinc-300 hover:text-white disabled:opacity-30"
-              aria-label="Next chapter"
-            >
-              <SkipForward size={26} />
-            </button>
-          </div>
-
-          <div className="pb-8" />
-        </>
-      )}
+              <button
+                onClick={() => setShowChapters(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-zinc-300 hover:text-white"
+                aria-label="View chapters"
+              >
+                <BookOpen size={14} />
+                <span className="text-xs font-medium">Chapters</span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
