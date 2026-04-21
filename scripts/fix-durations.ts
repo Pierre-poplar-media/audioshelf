@@ -109,6 +109,8 @@ async function main() {
       let totalDuration = 0
       let offset = 0
       let anyFailed = false
+      // Track the new durations so we can rebuild chapter timestamps accurately
+      const newDurations: Array<{ partIndex: number; startOffset: number; duration: number }> = []
 
       for (const part of parts) {
         process.stdout.write(`    Part ${String(part.part_index).padStart(2)}: `)
@@ -121,6 +123,7 @@ async function main() {
             .eq('id', part.id)
           if (updateErr) throw new Error(updateErr.message)
           console.log(`${dur.toFixed(1)}s  (offset ${offset.toFixed(1)}s)`)
+          newDurations.push({ partIndex: part.part_index, startOffset: offset, duration: dur })
           totalDuration += dur
           offset += dur
         } catch (e) {
@@ -132,6 +135,31 @@ async function main() {
 
       if (!anyFailed) {
         await supabase.from('books').update({ duration: totalDuration }).eq('id', book.id)
+
+        // Rebuild per-part chapter timestamps using the corrected offsets.
+        // If the chapter count matches the part count, the chapters were generated
+        // from parts during upload — it's safe to overwrite their start/end times.
+        // Embedded M4B chapter markers (single-file books) are handled in the else
+        // branch below and are not touched here.
+        const { data: existingChapters } = await supabase
+          .from('chapters')
+          .select('id, chapter_index')
+          .eq('book_id', book.id)
+
+        if (existingChapters && existingChapters.length === parts.length) {
+          process.stdout.write(`    Rebuilding ${parts.length} chapter timestamps... `)
+          await Promise.all(
+            newDurations.map(({ partIndex, startOffset, duration }) =>
+              supabase
+                .from('chapters')
+                .update({ start_time: startOffset, end_time: startOffset + duration })
+                .eq('book_id', book.id)
+                .eq('chapter_index', partIndex)
+            )
+          )
+          console.log('done')
+        }
+
         console.log(`    ✓ Total: ${formatDuration(totalDuration)}`)
         updated++
       }
