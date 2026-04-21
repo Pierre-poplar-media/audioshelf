@@ -13,6 +13,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -31,6 +33,20 @@ export default function LoginPage() {
 
     router.push('/library')
     router.refresh()
+  }
+
+  async function handleForgotPassword() {
+    if (!email) {
+      setError('Enter your email address above first.')
+      return
+    }
+    setResetting(true)
+    setError(null)
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setResetSent(true)
+    setResetting(false)
   }
 
   return (
@@ -57,7 +73,17 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-zinc-300">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-zinc-300">Password</Label>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetting}
+                className="text-xs text-zinc-500 hover:text-amber-400 transition-colors"
+              >
+                {resetting ? 'Sending…' : 'Forgot password?'}
+              </button>
+            </div>
             <Input
               id="password"
               type="password"
@@ -69,6 +95,12 @@ export default function LoginPage() {
               placeholder="••••••••"
             />
           </div>
+
+          {resetSent && (
+            <p className="text-sm text-amber-400 bg-amber-950/30 border border-amber-900 rounded-md px-3 py-2">
+              Reset link sent — check your inbox.
+            </p>
+          )}
 
           {error && (
             <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-md px-3 py-2">
