@@ -67,20 +67,26 @@ export function useAudio() {
     return (currentPartRef.current?.start_offset ?? 0) + audio.currentTime
   }, [])
 
-  // Load a specific part URL into the audio element
-  const loadPart = useCallback((part: BookPart, localPos: number, autoPlay: boolean) => {
+  // Build a same-origin proxy URL for a book part — avoids CORS and presigned URL issues
+  const partProxyUrl = useCallback((bookId: string, partIndex: number) => {
+    return `/api/audio/${bookId}?part=${partIndex}`
+  }, [])
+
+  // Load a specific part into the audio element via the server-side proxy
+  const loadPart = useCallback((part: BookPart, localPos: number, autoPlay: boolean, bookId: string) => {
     const audio = audioRef.current
     if (!audio) return
     currentPartRef.current = part
-    if (audio.src !== part.audio_url) {
-      audio.src = part.audio_url
+    const proxyUrl = partProxyUrl(bookId, part.part_index)
+    if (audio.src !== proxyUrl) {
+      audio.src = proxyUrl
     }
     audio.currentTime = localPos
     if (autoPlay) audio.play().catch((err) => {
       if (err.name === 'AbortError') return // harmless race between play/pause, self-resolves
       setIsPlaying(false)
     })
-  }, [setIsPlaying])
+  }, [setIsPlaying, partProxyUrl])
 
   // Initialize or update audio source when book changes
   useEffect(() => {
@@ -101,14 +107,17 @@ export function useAudio() {
       : parts.reduce((sum, p) => sum + (p.duration ?? 0), 0)
     if (totalDuration > 0) setDuration(totalDuration)
 
+    // Use same-origin proxy URL — avoids all presigned URL / CORS issues with R2
+    const singleProxyUrl = `/api/audio/${book.id}`
+
     if (parts.length > 1) {
       const { part, localPos } = resolvePartAt(startPos, parts)
-      loadPart(part, localPos, false)
+      loadPart(part, localPos, false, book.id)
     } else {
       // Single-file book
       currentPartRef.current = null
-      if (book.audio_url && audio.src !== book.audio_url) {
-        audio.src = book.audio_url
+      if (audio.src !== singleProxyUrl) {
+        audio.src = singleProxyUrl
         audio.currentTime = startPos
       }
     }
@@ -133,7 +142,7 @@ export function useAudio() {
         const sorted = [...parts].sort((a, b) => a.part_index - b.part_index)
         const nextPart = sorted.find(p => p.part_index === current.part_index + 1)
         if (nextPart) {
-          loadPart(nextPart, 0, true)
+          loadPart(nextPart, 0, true, book.id)
           return
         }
       }
