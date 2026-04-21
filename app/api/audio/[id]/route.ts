@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { Readable } from 'node:stream'
 import { createClient } from '@/lib/supabase/server'
 import { r2, BUCKET } from '@/lib/r2'
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
@@ -46,6 +47,7 @@ export async function GET(
     })
 
     const r2Res = await r2.send(cmd)
+    if (!r2Res.Body) return new Response('No content', { status: 204 })
 
     const headers: Record<string, string> = {
       'Accept-Ranges': 'bytes',
@@ -58,7 +60,11 @@ export async function GET(
 
     const status = rangeHeader ? 206 : 200
 
-    return new Response(r2Res.Body as ReadableStream, { status, headers })
+    // AWS SDK returns a Node.js Readable in server environments.
+    // Convert to a Web ReadableStream for the Response constructor.
+    const webStream = Readable.toWeb(r2Res.Body as Readable) as ReadableStream
+
+    return new Response(webStream, { status, headers })
   } catch (err: unknown) {
     const e = err as { name?: string; $metadata?: { httpStatusCode?: number } }
     if (e.$metadata?.httpStatusCode === 404 || e.name === 'NoSuchKey') {
