@@ -240,8 +240,9 @@ export function useAudio() {
 
     if (parts.length > 1) {
       const { part, localPos } = resolvePartAt(Math.max(0, globalSeconds), parts)
-      if (audio.src !== part.audio_url) {
-        loadPart(part, localPos, isPlaying)
+      const proxyUrl = book?.id ? `/api/audio/${book.id}?part=${part.part_index}` : ''
+      if (audio.src !== proxyUrl) {
+        loadPart(part, localPos, isPlaying, book?.id ?? '')
       } else {
         audio.currentTime = Math.max(0, localPos)
       }
