@@ -2,10 +2,12 @@ import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { r2, BUCKET } from '@/lib/r2'
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Stream audio from R2 through this API so the browser never touches presigned URLs.
-// This avoids CORS issues, presigned URL expiry, and m4b moov-atom seeking problems.
-// The browser can request any Range; we forward it directly to R2.
+// We generate a short-lived presigned URL server-side and fetch() from it, then forward
+// the native Web ReadableStream body. This avoids the Node.js stream → ReadableStream
+// conversion which doesn't flow reliably through Vercel Lambda.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -39,47 +41,39 @@ export async function GET(
   const rangeHeader = request.headers.get('range')
 
   try {
-    const cmd = new GetObjectCommand({
-      Bucket: BUCKET,
-      Key: audioKey,
-      ...(rangeHeader ? { Range: rangeHeader } : {}),
-    })
+    // Generate a short-lived presigned URL so we can fetch() from it server-side.
+    // fetch() returns a native Web ReadableStream body that streams cleanly through
+    // Vercel's Lambda — unlike wrapping the AWS SDK's Node.js EventEmitter stream.
+    const signedUrl = await getSignedUrl(
+      r2,
+      new GetObjectCommand({ Bucket: BUCKET, Key: audioKey }),
+      { expiresIn: 300 } // 5 minutes — only needs to last for this server-side fetch
+    )
 
-    const r2Res = await r2.send(cmd)
-    if (!r2Res.Body) return new Response('No content', { status: 204 })
+    const fetchHeaders: Record<string, string> = {}
+    if (rangeHeader) fetchHeaders['Range'] = rangeHeader
 
-    const headers: Record<string, string> = {
+    const r2Res = await fetch(signedUrl, { headers: fetchHeaders })
+
+    if (!r2Res.ok && r2Res.status !== 206) {
+      console.error('R2 fetch error:', r2Res.status, await r2Res.text())
+      return new Response('R2 error', { status: 502 })
+    }
+
+    const responseHeaders: Record<string, string> = {
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'private, max-age=3600',
     }
 
-    if (r2Res.ContentType) headers['Content-Type'] = r2Res.ContentType
-    if (r2Res.ContentLength) headers['Content-Length'] = String(r2Res.ContentLength)
-    if (r2Res.ContentRange) headers['Content-Range'] = r2Res.ContentRange
+    const ct = r2Res.headers.get('content-type')
+    const cl = r2Res.headers.get('content-length')
+    const cr = r2Res.headers.get('content-range')
+    if (ct) responseHeaders['Content-Type'] = ct
+    if (cl) responseHeaders['Content-Length'] = cl
+    if (cr) responseHeaders['Content-Range'] = cr
 
-    const status = rangeHeader ? 206 : 200
-
-    // AWS SDK returns a Node.js EventEmitter-style stream in server environments.
-    // Wrap it in a Web ReadableStream so the Response constructor accepts it.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const nodeStream = r2Res.Body as any
-    const webStream = new ReadableStream({
-      start(controller) {
-        nodeStream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)))
-        nodeStream.on('end', () => controller.close())
-        nodeStream.on('error', (err: Error) => controller.error(err))
-      },
-      cancel() {
-        nodeStream.destroy?.()
-      },
-    })
-
-    return new Response(webStream, { status, headers })
+    return new Response(r2Res.body, { status: r2Res.status, headers: responseHeaders })
   } catch (err: unknown) {
-    const e = err as { name?: string; $metadata?: { httpStatusCode?: number } }
-    if (e.$metadata?.httpStatusCode === 404 || e.name === 'NoSuchKey') {
-      return new Response('Audio not found', { status: 404 })
-    }
     console.error('R2 audio proxy error:', err)
     return new Response('Internal error', { status: 500 })
   }
